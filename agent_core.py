@@ -7,19 +7,16 @@ Architecture:
   Adding a new skill requires only a new YAML file — no Python code changes.
 """
 
+import importlib
 import json
 import logging
 import os
 import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
 
 import yaml
-
-# Prevent visible cmd.exe windows when spawning subprocesses under pythonw
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 from azure.identity import (
     AuthenticationRecord,
@@ -29,7 +26,7 @@ from azure.identity import (
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from outlook_helper import create_outlook_meeting, _resolve_organizer, set_credential
+from outlook_helper import set_credential
 
 load_dotenv()
 
@@ -183,107 +180,54 @@ def get_responses_client() -> OpenAI:
 _SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
+# ---------------------------------------------------------------------------
+# Tool loader — discovers tool modules from tools/ folder
+# ---------------------------------------------------------------------------
+
+_TOOLS_DIR = Path(__file__).resolve().parent / "tools"
+
 # Registry of tool name → JSON schema (for the Responses API)
-TOOL_SCHEMAS: dict[str, dict] = {
-    "query_workiq": {
-        "type": "function",
-        "name": "query_workiq",
-        "description": (
-            "Query the user's Microsoft 365 data via WorkIQ CLI. Use this to "
-            "retrieve agenda details, speakers, topics, time slots, email "
-            "addresses, calendar events, documents, emails, contacts, and "
-            "any other M365 data."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "question": {
-                    "type": "string",
-                    "description": (
-                        "The natural language question to ask WorkIQ about "
-                        "the user's M365 data."
-                    ),
-                }
-            },
-            "required": ["question"],
-        },
-    },
-    "log_progress": {
-        "type": "function",
-        "name": "log_progress",
-        "description": (
-            "Log a formatted progress update for the user to see. Call this "
-            "after each major step to show what was retrieved or decided. "
-            "Use markdown formatting (tables, lists, bold)."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "step_title": {
-                    "type": "string",
-                    "description": (
-                        "Short title for this step, e.g. 'Agenda Retrieved', "
-                        "'Speakers Filtered', 'Emails Resolved'."
-                    ),
-                },
-                "details": {
-                    "type": "string",
-                    "description": (
-                        "Formatted markdown summary of what was found or "
-                        "decided in this step."
-                    ),
-                },
-            },
-            "required": ["step_title", "details"],
-        },
-    },
-    "create_meeting_invites": {
-        "type": "function",
-        "name": "create_meeting_invites",
-        "description": (
-            "Create draft (unsent) meeting invites in Outlook for each "
-            "speaker session. The invites will appear in the user's Outlook "
-            "calendar for review before sending."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "customer_name": {
-                    "type": "string",
-                    "description": "Customer or event name for the meeting subject.",
-                },
-                "sessions": {
-                    "type": "array",
-                    "description": "Array of session objects to create invites for.",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "speaker_name": {"type": "string"},
-                            "speaker_email": {"type": "string"},
-                            "topic": {"type": "string"},
-                            "start_time": {
-                                "type": "string",
-                                "description": "Start time in YYYY-MM-DD HH:MM format (24h).",
-                            },
-                            "end_time": {
-                                "type": "string",
-                                "description": "End time in YYYY-MM-DD HH:MM format (24h).",
-                            },
-                        },
-                        "required": [
-                            "speaker_name",
-                            "speaker_email",
-                            "topic",
-                            "start_time",
-                            "end_time",
-                        ],
-                    },
-                },
-            },
-            "required": ["customer_name", "sessions"],
-        },
-    },
-}
+TOOL_SCHEMAS: dict[str, dict] = {}
+
+# Registry of tool name → handler function (module.handle)
+_TOOL_HANDLERS: dict[str, callable] = {}
+
+
+def _load_tools():
+    """Discover and load all tool modules from the tools/ folder.
+
+    Each module must export:
+      SCHEMA  — dict with the tool's JSON schema for the Responses API
+      handle  — callable(arguments: dict, *, on_progress=None, **kwargs) -> str
+    """
+    if not _TOOLS_DIR.is_dir():
+        logger.warning("Tools directory not found: %s", _TOOLS_DIR)
+        return
+    # Ensure tools/ is importable
+    tools_parent = str(_TOOLS_DIR.parent)
+    if tools_parent not in sys.path:
+        sys.path.insert(0, tools_parent)
+    for path in sorted(_TOOLS_DIR.glob("*.py")):
+        if path.name.startswith("_"):
+            continue
+        module_name = f"tools.{path.stem}"
+        try:
+            mod = importlib.import_module(module_name)
+            schema = getattr(mod, "SCHEMA", None)
+            handler = getattr(mod, "handle", None)
+            if schema is None or handler is None:
+                logger.warning("Tool module %s missing SCHEMA or handle — skipping", path.name)
+                continue
+            tool_name = schema["name"]
+            TOOL_SCHEMAS[tool_name] = schema
+            _TOOL_HANDLERS[tool_name] = handler
+            logger.info("Loaded tool: %s from %s", tool_name, path.name)
+        except Exception as e:
+            logger.error("Failed to load tool from %s: %s", path.name, e)
+
+
+_load_tools()
+logger.info("Tools loaded: %s", list(TOOL_SCHEMAS.keys()))
 
 
 class Skill:
@@ -404,88 +348,12 @@ def _route(user_input: str) -> str:
 # Tool execution
 # ---------------------------------------------------------------------------
 
-def execute_query_workiq(question: str, on_progress=None) -> str:
-    """Run WorkIQ CLI and return the output."""
-    if not WORKIQ_CLI:
-        return "Error: workiq CLI not found. Install it or set WORKIQ_PATH in .env"
-    logger.info("[WorkIQ] Querying: %s", question)
-    if on_progress:
-        on_progress("tool", f"Querying WorkIQ: {question}")
-    try:
-        result = subprocess.run(
-            [WORKIQ_CLI, "ask", "-q", question],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            creationflags=_NO_WINDOW,
-        )
-        if result.returncode != 0:
-            return f"WorkIQ error (exit code {result.returncode}): {result.stderr.strip()}"
-        output = result.stdout.strip()
-        logger.info("[WorkIQ] Response received (%d chars)", len(output))
-        if on_progress:
-            on_progress("tool", f"WorkIQ responded ({len(output)} chars)")
-        return output
-    except subprocess.TimeoutExpired:
-        return "WorkIQ timed out after 120 seconds."
-    except Exception as e:
-        return f"Failed to call WorkIQ: {e}"
-
-
-def execute_log_progress(step_title: str, details: str, on_progress=None) -> str:
-    """Log a formatted progress update."""
-    header = f"┌─ {step_title}"
-    separator = "│"
-    footer = f"└{'─' * 60}"
-    body = "\n".join(f"│  {line}" for line in details.splitlines())
-    msg = f"{header}\n{separator}\n{body}\n{separator}\n{footer}"
-    logger.info("\n%s\n", msg)
-    if on_progress:
-        on_progress("progress", step_title)
-    return "Logged."
-
-
-def execute_create_meeting_invites(customer_name: str, sessions: list[dict], on_progress=None) -> str:
-    """Create Outlook meetings and return a summary."""
-    if on_progress:
-        on_progress("tool", f"Creating {len(sessions)} meeting invite(s)...")
-    results = []
-    for s in sessions:
-        try:
-            subject = f"{customer_name} — {s['topic']}"
-            body = (
-                f"Customer Engagement: {customer_name}\n"
-                f"Speaker: {s['speaker_name']}\n"
-                f"Topic: {s['topic']}\n\n"
-                f"This is an auto-generated invite. Please review before sending."
-            )
-            create_outlook_meeting(
-                subject=subject,
-                start=s["start_time"],
-                end=s["end_time"],
-                recipients=[s["speaker_email"]],
-                body=body,
-            )
-            results.append(f"OK: {subject} -> {s['speaker_email']}")
-        except Exception as e:
-            results.append(f"FAILED: {s['speaker_name']} — {e}")
-    return "\n".join(results)
-
-
-# Tool name → handler function
-_TOOL_HANDLERS = {
-    "query_workiq": lambda args, on_progress: execute_query_workiq(args["question"], on_progress),
-    "log_progress": lambda args, on_progress: execute_log_progress(args["step_title"], args["details"], on_progress),
-    "create_meeting_invites": lambda args, on_progress: execute_create_meeting_invites(args["customer_name"], args["sessions"], on_progress),
-}
-
-
 def handle_tool_call(name: str, arguments: str, on_progress=None) -> str:
     """Execute a tool call and return the result string."""
     args = json.loads(arguments)
     handler = _TOOL_HANDLERS.get(name)
     if handler:
-        return handler(args, on_progress)
+        return handler(args, on_progress=on_progress, workiq_cli=WORKIQ_CLI)
     return f"Unknown tool: {name}"
 
 

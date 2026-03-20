@@ -1,0 +1,54 @@
+"""
+Tool: log_progress
+Log a formatted progress update for the user to see in real time.
+"""
+
+import logging
+
+logger = logging.getLogger("workiq_assistant")
+
+
+SCHEMA = {
+    "type": "function",
+    "name": "log_progress",
+    "description": (
+        "Log a formatted progress update for the user to see. Call this "
+        "after each major step to show what was retrieved or decided. "
+        "Use markdown formatting (tables, lists, bold)."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "step_title": {
+                "type": "string",
+                "description": (
+                    "Short title for this step, e.g. 'Agenda Retrieved', "
+                    "'Speakers Filtered', 'Emails Resolved'."
+                ),
+            },
+            "details": {
+                "type": "string",
+                "description": (
+                    "Formatted markdown summary of what was found or "
+                    "decided in this step."
+                ),
+            },
+        },
+        "required": ["step_title", "details"],
+    },
+}
+
+
+def handle(arguments: dict, *, on_progress=None, **kwargs) -> str:
+    """Log a formatted progress update."""
+    step_title = arguments["step_title"]
+    details = arguments["details"]
+    header = f"┌─ {step_title}"
+    separator = "│"
+    footer = f"└{'─' * 60}"
+    body = "\n".join(f"│  {line}" for line in details.splitlines())
+    msg = f"{header}\n{separator}\n{body}\n{separator}\n{footer}"
+    logger.info("\n%s\n", msg)
+    if on_progress:
+        on_progress("progress", step_title)
+    return "Logged."

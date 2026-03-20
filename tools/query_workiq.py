@@ -1,0 +1,66 @@
+"""
+Tool: query_workiq
+Query the user's Microsoft 365 data via WorkIQ CLI.
+"""
+
+import logging
+import subprocess
+import sys
+
+logger = logging.getLogger("workiq_assistant")
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
+SCHEMA = {
+    "type": "function",
+    "name": "query_workiq",
+    "description": (
+        "Query the user's Microsoft 365 data via WorkIQ CLI. Use this to "
+        "retrieve agenda details, speakers, topics, time slots, email "
+        "addresses, calendar events, documents, emails, contacts, and "
+        "any other M365 data."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "question": {
+                "type": "string",
+                "description": (
+                    "The natural language question to ask WorkIQ about "
+                    "the user's M365 data."
+                ),
+            }
+        },
+        "required": ["question"],
+    },
+}
+
+
+def handle(arguments: dict, *, on_progress=None, workiq_cli=None, **kwargs) -> str:
+    """Run WorkIQ CLI and return the output."""
+    question = arguments["question"]
+    if not workiq_cli:
+        return "Error: workiq CLI not found. Install it or set WORKIQ_PATH in .env"
+    logger.info("[WorkIQ] Querying: %s", question)
+    if on_progress:
+        on_progress("tool", f"Querying WorkIQ: {question}")
+    try:
+        result = subprocess.run(
+            [workiq_cli, "ask", "-q", question],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            creationflags=_NO_WINDOW,
+        )
+        if result.returncode != 0:
+            return f"WorkIQ error (exit code {result.returncode}): {result.stderr.strip()}"
+        output = result.stdout.strip()
+        logger.info("[WorkIQ] Response received (%d chars)", len(output))
+        if on_progress:
+            on_progress("tool", f"WorkIQ responded ({len(output)} chars)")
+        return output
+    except subprocess.TimeoutExpired:
+        return "WorkIQ timed out after 120 seconds."
+    except Exception as e:
+        return f"Failed to call WorkIQ: {e}"

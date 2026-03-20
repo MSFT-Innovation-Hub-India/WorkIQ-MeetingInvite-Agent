@@ -50,7 +50,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("workiq_assistant")
 
-from agent_core import run_agent, check_azure_auth, run_az_login, _resolve_organizer, reset_qa_history, get_loaded_skills
+from agent_core import run_agent, check_azure_auth, run_az_login, reset_qa_history, get_loaded_skills
+from outlook_helper import _resolve_organizer
 
 IS_WIN = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"

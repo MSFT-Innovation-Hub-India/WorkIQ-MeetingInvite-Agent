@@ -201,7 +201,43 @@ For skills that use **existing tools** (like `query_workiq` and `log_progress`):
 
 **No Python code changes required.** The `email_summary` skill was added this way — zero lines of Python, just a YAML file.
 
-For skills that need a **new tool** (e.g., a tool that writes to SharePoint or creates Teams channels), a developer adds the tool's JSON schema to `TOOL_SCHEMAS` and its Python handler to `_TOOL_HANDLERS` in `agent_core.py`. Once registered, any skill can reference it by name.
+For skills that need a **new tool** (e.g., a tool that writes to SharePoint or creates Teams channels):
+
+1. Create a new `.py` file in the `tools/` folder
+2. Export a `SCHEMA` dict (JSON schema for the Responses API) and a `handle()` function
+3. Reference the tool by name in the skill's `tools:` list
+4. Restart the agent
+
+**No changes to `agent_core.py` required.** Tools are discovered automatically via `importlib` at startup, just like skills. Each tool module is self-contained — the schema and handler live in the same file:
+
+```python
+# tools/send_teams_message.py
+
+SCHEMA = {
+    "type": "function",
+    "name": "send_teams_message",
+    "description": "Send a message to a Microsoft Teams channel.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "channel": {"type": "string", "description": "Teams channel name."},
+            "message": {"type": "string", "description": "Message content."},
+        },
+        "required": ["channel", "message"],
+    },
+}
+
+def handle(arguments: dict, *, on_progress=None, **kwargs) -> str:
+    """Send the message and return a confirmation."""
+    # Implementation here
+    ...
+```
+
+The full composable workflow for adding a completely new capability is:
+
+1. `tools/send_teams_message.py` — tool schema + handler (Python)
+2. `skills/teams_notify.yaml` — skill definition with instructions (YAML)
+3. Restart — both are auto-discovered, the router starts routing matching requests
 
 ---
 
@@ -234,22 +270,27 @@ This architecture has a significant practical benefit: **extending the agent's c
 │  │   (chat_ui.html)      │────►│  HTTP Server     (http://18081)  │ │
 │  │                       │     │                                  │ │
 │  │  • Markdown rendering │     │  ┌───────────────────────────┐   │ │
-│  │  • Auth banner/Sign-In│     │  │   Skill Loader (YAML)     │   │ │
-│  │  • Progress steps     │     │  │   skills/*.yaml → runtime │   │ │
+│  │  • Auth banner/Sign-In│     │  │   Tool Loader (Python)    │   │ │
+│  │  • Progress steps     │     │  │   tools/*.py → registry   │   │ │
 │  │  • Skills panel       │     │  └────────┬──────────────────┘   │ │
 │  │  • Toast click handler│     │           │                      │ │
 │  └───────────────────────┘     │  ┌────────▼──────────────────┐   │ │
-│                                │  │    Router (Master Agent)  │   │ │
-│  ┌───────────────────────┐     │  │    Azure OpenAI gpt-5.2   │   │ │
-│  │  Global Hotkey Listener│    │  │   (prompt auto-built from │   │ │
-│  │  (pynput)             │     │  │    skill descriptions)    │   │ │
-│  │  Ctrl+Alt+M           │     │  └────────┬──────────────────┘   │ │
+│                                │  │   Skill Loader (YAML)     │   │ │
+│  ┌───────────────────────┐     │  │   skills/*.yaml → runtime │   │ │
+│  │  Global Hotkey Listener│    │  └────────┬──────────────────┘   │ │
+│  │  (pynput)             │     │           │                      │ │
+│  │  Ctrl+Alt+M           │     │  ┌────────▼──────────────────┐   │ │
+│  └───────────────────────┘     │  │    Router (Master Agent)  │   │ │
+│                                │  │    Azure OpenAI gpt-5.2   │   │ │
+│  ┌───────────────────────┐     │  │   (prompt auto-built from │   │ │
+│  │  Toast Notifications  │     │  │    skill descriptions)    │   │ │
+│  │  (winotify)           │     │  └────────┬──────────────────┘   │ │
 │  └───────────────────────┘     │           │ classifies intent    │ │
 │                                │     ┌─────┴──────┬──────────┐    │ │
-│  ┌───────────────────────┐     │     ▼            ▼          ▼    │ │
-│  │  Toast Notifications  │     │  ┌───────┐ ┌─────────┐ ┌──────┐  │ │
-│  │  (winotify)           │     │  │ Skill │ │  Skill  │ │Skill │  │ │
-│  └───────────────────────┘     │  │  (N)  │ │  (N+1)  │ │ ...  │  │ │
+│                                │     ▼            ▼          ▼    │ │
+│                                │  ┌───────┐ ┌─────────┐ ┌──────┐  │ │
+│                                │  │ Skill │ │  Skill  │ │Skill │  │ │
+│                                │  │  (N)  │ │  (N+1)  │ │ ...  │  │ │
 │                                │  │ model │ │  model  │ │      │  │ │
 │                                │  │ tools │ │  tools  │ │      │  │ │
 │                                │  │instrs │ │ instrs  │ │      │  │ │
@@ -297,19 +338,21 @@ This architecture has a significant practical benefit: **extending the agent's c
 
 4. **pywebview window** — A lightweight native window that renders `chat_ui.html`. It starts hidden and is toggled on demand. When the user closes the window, it hides instead of quitting — the agent keeps running.
 
-5. **Skill Loader** — At startup, the agent discovers all `.yaml` files in the `skills/` folder, parses each into a `Skill` object (name, description, model tier, tools, instructions), and automatically builds the router's system prompt from their descriptions.
+5. **Tool Loader** — At startup, the agent discovers all `.py` files in the `tools/` folder via `importlib`, imports each module, and registers its `SCHEMA` and `handle()` function into the tool registry. Adding a new tool requires only dropping a Python file — no edits to core code.
 
-6. **Router (Master Agent)** — Every user message is classified by an LLM call into one of the loaded skill names. The router prompt is auto-generated — adding a new skill YAML file is enough for the router to start recognizing and delegating matching requests.
+6. **Skill Loader** — Discovers all `.yaml` files in the `skills/` folder, parses each into a `Skill` object (name, description, model tier, tools, instructions), and automatically builds the router's system prompt from their descriptions.
 
-7. **Skills** — Each skill operates with its own system prompt, tool set, and model tier, as defined in its YAML file. The four built-in skills are:
+7. **Router (Master Agent)** — Every user message is classified by an LLM call into one of the loaded skill names. The router prompt is auto-generated — adding a new skill YAML file is enough for the router to start recognizing and delegating matching requests.
+
+8. **Skills** — Each skill operates with its own system prompt, tool set, and model tier, as defined in its YAML file. The four built-in skills are:
    - **Meeting Invites** — Full `gpt-5.2` model. Autonomous multi-step workflow: retrieve agenda, filter speakers, resolve emails, send calendar invites.
    - **Q&A** — `gpt-5.4-mini` with conversation history (last 20 messages) for follow-up context.
    - **Email Summary** — `gpt-5.4-mini`. Summarizes unread/recent emails and highlights items needing attention.
    - **General** — `gpt-5.4-mini` for greetings and small talk without tool calls.
 
-8. **Azure OpenAI Responses API (Agentic Layer)** — The orchestration engine beneath the skills. The application provides tool definitions and natural-language instructions; the Responses API autonomously determines the sequence of tool calls, interprets results, and loops until the task is complete. There is no custom workflow code — the multi-step behavior emerges entirely from the instructions.
+9. **Azure OpenAI Responses API (Agentic Layer)** — The orchestration engine beneath the skills. The application provides tool definitions and natural-language instructions; the Responses API autonomously determines the sequence of tool calls, interprets results, and loops until the task is complete. There is no custom workflow code — the multi-step behavior emerges entirely from the instructions.
 
-9. **Tool execution layer** — Bridges LLM tool calls to real actions:
+10. **Tool execution layer** — Bridges LLM tool calls to real actions (each tool is a self-contained Python module in `tools/`):
    - `query_workiq` — Runs the WorkIQ CLI as a subprocess to query Microsoft 365 data.
    - `log_progress` — Sends structured progress updates to the UI in real time.
    - `create_meeting_invites` — Constructs `.ics` calendar invites and delivers them via Azure Communication Services.
@@ -374,8 +417,8 @@ All logs are written to `~/.workiq-assistant/agent.log`, including agent routing
 workiq-assistant/
 ├── meeting_agent.py       # Main entry point — launcher, WebSocket/HTTP servers,
 │                          #   pywebview window, hotkey, toast notifications
-├── agent_core.py          # Core agent logic — router, skill loader, tool registry,
-│                          #   tool execution, auth helpers
+├── agent_core.py          # Core agent logic — router, skill loader, tool loader,
+│                          #   auth helpers (no hardcoded tools or skills)
 ├── agent.py               # Console entry point — terminal-based interaction for
 │                          #   development and debugging (no UI, no background mode)
 ├── outlook_helper.py      # Azure Communication Services integration — builds .ics
@@ -390,6 +433,10 @@ workiq-assistant/
 ├── .env.example           # Template for .env with placeholder values
 ├── .gitignore             # Git ignore rules
 ├── requirements.txt       # Python dependencies
+├── tools/                 # Tool modules (Python) — loaded dynamically at startup
+│   ├── query_workiq.py       # Query M365 data via WorkIQ CLI
+│   ├── log_progress.py       # Send real-time progress updates to the UI
+│   └── create_meeting_invites.py  # Build .ics invites, send via ACS
 ├── skills/                # Skill definitions (YAML) — loaded dynamically at startup
 │   ├── meeting_invites.yaml  # Autonomous meeting invite workflow (full model)
 │   ├── qa.yaml               # Conversational Q&A via WorkIQ (mini model)
