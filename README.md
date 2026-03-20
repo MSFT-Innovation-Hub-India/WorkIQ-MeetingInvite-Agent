@@ -1,4 +1,4 @@
-# WorkIQ Assistant
+# WorkIQ Agent
 
 An always-on, background-running AI assistant for Windows 11 that autonomously completes tasks against your Microsoft 365 data — so you can delegate work, walk away, and come back to results.
 
@@ -6,9 +6,9 @@ An always-on, background-running AI assistant for Windows 11 that autonomously c
 
 ## What It Does
 
-WorkIQ Assistant is designed to run perpetually on a Windows 11 laptop. It lives in the background — no window, no taskbar clutter — and is summoned with a keyboard shortcut whenever you need it. You assign a task, close the window, and continue with your day. When the task is complete, a Windows toast notification appears. Clicking the toast brings up the results.
+WorkIQ Agent is designed to run perpetually on a Windows 11 laptop. It lives in the background — no window, no taskbar clutter — and is summoned with a keyboard shortcut whenever you need it. You assign a task, close the window, and continue with your day. When the task is complete, a Windows toast notification appears. Clicking the toast brings up the results.
 
-This approach to task delegation mirrors the principle of **autonomous agentic execution**: the user states an intent in natural language, and the agent orchestrates a multi-step workflow end-to-end without any further human intervention. The agent decides what data to fetch, what sequence of actions to take, and how to present the outcome — all in one shot.
+The Agent exhibits **autonomous agentic execution**: the user states an intent in natural language, and the agent orchestrates a multi-step workflow end-to-end without any further human intervention. The agent decides what data to fetch, what sequence of actions to take, and how to present the outcome — all in one shot.
 
 ### Functional Features
 
@@ -30,7 +30,7 @@ This approach to task delegation mirrors the principle of **autonomous agentic e
 
 ## The Meeting Invite Agent — Autonomous Multi-Step Workflow
 
-This is the flagship capability and a task that **cannot be accomplished today using Microsoft 365 Copilot Chat or Copilot Cowork**. When a user says something like:
+This task **cannot be accomplished today using Microsoft 365 Copilot Chat or Copilot Cowork directly**. It would require multiple iterations with the available tools to complete it. When a user says something like:
 
 > *"Refer to the Agenda Word document created in the last 5 days for the upcoming Customer Engagement with Zava. Send meeting invites to all speakers for based on their topics and timing"*
 
@@ -45,6 +45,24 @@ The agent executes the following sequence **entirely on its own**, with no furth
 This is powered by the **Azure OpenAI Responses API** — true agentic AI. The main agent calls the Meeting Invite Agent only once with natural-language instructions. The Responses API autonomously orchestrates the entire tool-call loop: it decides which tool to call next, interprets the results, and chains them into subsequent tool calls until the workflow is complete.
 
 > At the time of this writing, direct access to the WorkIQ Outlook Calendar API is not available, so Azure Communication Services is used to deliver the calendar invites via email instead.
+
+---
+
+## Azure OpenAI Responses API — The Agentic Core
+
+The autonomous behavior of this solution is powered entirely by the **Azure OpenAI Responses API**. This is what makes the agent truly agentic rather than a scripted workflow.
+
+The Responses API accepts a set of **tool definitions** and **natural-language instructions**, then autonomously decides which tools to call, in what order, and how to interpret the results — looping through tool calls until the task is complete. The application code does not contain any orchestration logic, conditional branching, or step sequencing for the multi-step workflows. It simply:
+
+1. Defines the available tools (`query_workiq`, `log_progress`, `create_meeting_invites`)
+2. Provides natural-language instructions describing the desired outcome
+3. Calls the Responses API **once**
+4. Executes whatever tool calls the API requests, feeding results back
+5. Repeats until the API produces a final text response
+
+The entire meeting invite workflow — retrieving agenda data, filtering speakers, resolving emails, sending invites — emerges from the instructions alone. **No custom orchestration code was written for any of these steps.**
+
+This architecture has a significant practical benefit: **extending the agent's capabilities requires only adding a new tool definition and updating the instructions**. No workflow code, no state machines, no step graphs. The Responses API figures out how to use the new tool in context with the existing ones.
 
 ---
 
@@ -73,7 +91,16 @@ This is powered by the **Azure OpenAI Responses API** — true agentic AI. The m
 │  ┌───────────────────────┐     │  └──┬───┘  └──┬─────┘  └─────┘   │ │
 │  │  Toast Notifications  │     │     │         │                  │ │
 │  │  (winotify)           │     │     ▼         ▼                  │ │
-│  └───────────────────────┘     │  ┌───────────────────────────┐   │ │
+│  └───────────────────────┘     │  ┌────────────────────────────┐  │ │
+│                                │  │  Azure OpenAI Responses    │  │ │
+│                                │  │  API (Agentic Layer)       │  │ │
+│                                │  │  • Autonomous tool-call    │  │ │
+│                                │  │    orchestration           │  │ │
+│                                │  │  • No custom workflow code │  │ │
+│                                │  │  • Instructions-driven     │  │ │
+│                                │  └──────────┬─────────────────┘  │ │
+│                                │             ▼                    │ │
+│                                │  ┌───────────────────────────┐   │ │
 │                                │  │   Tool Execution Layer    │   │ │
 │                                │  │  • query_workiq (CLI)     │   │ │
 │                                │  │  • log_progress           │   │ │
@@ -112,7 +139,9 @@ This is powered by the **Azure OpenAI Responses API** — true agentic AI. The m
    - **Q&A Agent** — Uses the smaller `gpt-5.4-mini` model with conversation history (last 20 messages) for follow-up context.
    - **General handler** — Uses `gpt-5.4-mini` for lightweight greetings and small talk without tool calls.
 
-7. **Tool execution layer** — Bridges LLM tool calls to real actions:
+7. **Azure OpenAI Responses API (Agentic Layer)** — The orchestration engine beneath the sub-agents. The application provides tool definitions and natural-language instructions; the Responses API autonomously determines the sequence of tool calls, interprets results, and loops until the task is complete. There is no custom workflow code — the multi-step behavior emerges entirely from the instructions.
+
+8. **Tool execution layer** — Bridges LLM tool calls to real actions:
    - `query_workiq` — Runs the WorkIQ CLI as a subprocess to query Microsoft 365 data.
    - `log_progress` — Sends structured progress updates to the UI in real time.
    - `create_meeting_invites` — Constructs `.ics` calendar invites and delivers them via Azure Communication Services.
