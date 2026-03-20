@@ -171,21 +171,29 @@ This architecture has a significant practical benefit: **extending the agent's c
 │  │   (chat_ui.html)      │────►│  HTTP Server     (http://18081)  │ │
 │  │                       │     │                                  │ │
 │  │  • Markdown rendering │     │  ┌───────────────────────────┐   │ │
-│  │  • Auth banner/Sign-In│     │  │    Router (Master Agent)  │   │ │
-│  │  • Progress steps     │     │  │    Azure OpenAI gpt-5.2   │   │ │
-│  │  • Toast click handler│     │  └────────┬──────────────────┘   │ │
+│  │  • Auth banner/Sign-In│     │  │   Skill Loader (YAML)     │   │ │
+│  │  • Progress steps     │     │  │   skills/*.yaml → runtime │   │ │
+│  │  • Skills panel       │     │  └────────┬──────────────────┘   │ │
+│  │  • Toast click handler│     │           │                      │ │
+│  └───────────────────────┘     │  ┌────────▼──────────────────┐   │ │
+│                                │  │    Router (Master Agent)  │   │ │
+│  ┌───────────────────────┐     │  │    Azure OpenAI gpt-5.2   │   │ │
+│  │  Global Hotkey Listener│    │  │   (prompt auto-built from │   │ │
+│  │  (pynput)             │     │  │    skill descriptions)    │   │ │
+│  │  Ctrl+Alt+M           │     │  └────────┬──────────────────┘   │ │
 │  └───────────────────────┘     │           │ classifies intent    │ │
-│                                │     ┌─────┴─────┬───────────┐    │ │
-│  ┌───────────────────────┐     │     ▼           ▼           ▼    │ │
-│  │  Global Hotkey Listener│    │  ┌──────┐  ┌────────┐  ┌─────┐   │ │
-│  │  (pynput)             │     │  │Q&A   │  │Meeting │  │Gen- │   │ │
-│  │  Ctrl+Alt+M           │     │  │Agent │  │Invite  │  │eral │   │ │
-│  └───────────────────────┘     │  │Mini  │  │Agent   │  │Mini │   │ │
-│                                │  │Model │  │Full LLM│  │Model│   │ │
-│  ┌───────────────────────┐     │  └──┬───┘  └──┬─────┘  └─────┘   │ │
-│  │  Toast Notifications  │     │     │         │                  │ │
-│  │  (winotify)           │     │     ▼         ▼                  │ │
-│  └───────────────────────┘     │  ┌────────────────────────────┐  │ │
+│                                │     ┌─────┴──────┬──────────┐    │ │
+│  ┌───────────────────────┐     │     ▼            ▼          ▼    │ │
+│  │  Toast Notifications  │     │  ┌───────┐ ┌─────────┐ ┌──────┐  │ │
+│  │  (winotify)           │     │  │ Skill │ │  Skill  │ │Skill │  │ │
+│  └───────────────────────┘     │  │  (N)  │ │  (N+1)  │ │ ...  │  │ │
+│                                │  │ model │ │  model  │ │      │  │ │
+│                                │  │ tools │ │  tools  │ │      │  │ │
+│                                │  │instrs │ │ instrs  │ │      │  │ │
+│                                │  └──┬────┘ └──┬──────┘ └──────┘  │ │
+│                                │     │         │                  │ │
+│                                │     ▼         ▼                  │ │
+│                                │  ┌────────────────────────────┐  │ │
 │                                │  │  Azure OpenAI Responses    │  │ │
 │                                │  │  API (Agentic Layer)       │  │ │
 │                                │  │  • Autonomous tool-call    │  │ │
@@ -226,16 +234,19 @@ This architecture has a significant practical benefit: **extending the agent's c
 
 4. **pywebview window** — A lightweight native window that renders `chat_ui.html`. It starts hidden and is toggled on demand. When the user closes the window, it hides instead of quitting — the agent keeps running.
 
-5. **Router (Master Agent)** — Every user message is first classified by an LLM call into one of three categories: `meeting_invites`, `qa`, or `general`. This determines which sub-agent handles the request.
+5. **Skill Loader** — At startup, the agent discovers all `.yaml` files in the `skills/` folder, parses each into a `Skill` object (name, description, model tier, tools, instructions), and automatically builds the router's system prompt from their descriptions.
 
-6. **Sub-agents** — Each operates with its own system prompt, tool set, and model:
-   - **Meeting Invite Agent** — Uses the full `gpt-5.2` model. Given natural-language instructions, the Responses API autonomously executes a multi-step tool-calling loop until completion.
-   - **Q&A Agent** — Uses the smaller `gpt-5.4-mini` model with conversation history (last 20 messages) for follow-up context.
-   - **General handler** — Uses `gpt-5.4-mini` for lightweight greetings and small talk without tool calls.
+6. **Router (Master Agent)** — Every user message is classified by an LLM call into one of the loaded skill names. The router prompt is auto-generated — adding a new skill YAML file is enough for the router to start recognizing and delegating matching requests.
 
-7. **Azure OpenAI Responses API (Agentic Layer)** — The orchestration engine beneath the sub-agents. The application provides tool definitions and natural-language instructions; the Responses API autonomously determines the sequence of tool calls, interprets results, and loops until the task is complete. There is no custom workflow code — the multi-step behavior emerges entirely from the instructions.
+7. **Skills** — Each skill operates with its own system prompt, tool set, and model tier, as defined in its YAML file. The four built-in skills are:
+   - **Meeting Invites** — Full `gpt-5.2` model. Autonomous multi-step workflow: retrieve agenda, filter speakers, resolve emails, send calendar invites.
+   - **Q&A** — `gpt-5.4-mini` with conversation history (last 20 messages) for follow-up context.
+   - **Email Summary** — `gpt-5.4-mini`. Summarizes unread/recent emails and highlights items needing attention.
+   - **General** — `gpt-5.4-mini` for greetings and small talk without tool calls.
 
-8. **Tool execution layer** — Bridges LLM tool calls to real actions:
+8. **Azure OpenAI Responses API (Agentic Layer)** — The orchestration engine beneath the skills. The application provides tool definitions and natural-language instructions; the Responses API autonomously determines the sequence of tool calls, interprets results, and loops until the task is complete. There is no custom workflow code — the multi-step behavior emerges entirely from the instructions.
+
+9. **Tool execution layer** — Bridges LLM tool calls to real actions:
    - `query_workiq` — Runs the WorkIQ CLI as a subprocess to query Microsoft 365 data.
    - `log_progress` — Sends structured progress updates to the UI in real time.
    - `create_meeting_invites` — Constructs `.ics` calendar invites and delivers them via Azure Communication Services.
