@@ -94,14 +94,75 @@ Each capability of the WorkIQ Agent is defined as a **skill** — a self-contain
 
 ### Skill anatomy
 
+The meeting invites skill — the flagship capability — illustrates how a complex multi-step autonomous workflow is defined entirely in YAML:
+
+```yaml
+# skills/meeting_invites.yaml
+name: meeting_invites
+description: >
+  Send or create calendar invites and meeting invitations to speakers or
+  presenters from an agenda document or event. Keywords: invite, calendar,
+  schedule speakers, send invites, agenda, engagement.
+model: full              # "full" → gpt-5.2 (complex reasoning)
+conversational: false    # no follow-up context needed
+
+tools:
+  - query_workiq
+  - log_progress
+  - create_meeting_invites
+
+instructions: |
+  You are an autonomous Hub Engagement Speaker Schedule Management Agent.
+
+  Given a user request about a customer engagement event, you MUST complete
+  ALL of the following steps using tool calls — do NOT stop or return text
+  to the user until every step is done.
+
+  STEP 1: Call query_workiq to retrieve the COMPLETE agenda document. Ask
+  for: EVERY row in the agenda table including topic names, speaker names,
+  and time slots for each session. ...
+
+  STEP 2: From the COMPLETE list of rows, identify ALL Microsoft employee
+  speakers. Apply these rules:
+  DISCARD rows that are:
+  - Lunch breaks, tea breaks, coffee breaks, or any kind of break
+  - Rows with no topic or no speaker assigned
+  - Rows where the speaker is ONLY a team name or company name
+  KEEP rows where:
+  - The speaker is a clearly identifiable individual person's name
+  ...
+
+  STEP 3: Call query_workiq ONCE to look up the Microsoft corporate email
+  addresses of ALL the individual speakers identified in Step 2.
+  ...
+
+  STEP 4: Call create_meeting_invites with the curated list of sessions,
+  including each speaker's email address.
+  ...
+
+  STEP 5: After the invites are created, present the user with a final
+  summary table showing: Topic, Speaker, Time Slot, Email, and Status.
+  ...
+
+  IMPORTANT:
+  - Complete ALL steps autonomously in a single turn.
+  - Always call log_progress after each query_workiq call.
+  - If a speaker appears in multiple sessions, create a separate invite
+    for each session.
+```
+
+Notice that the **entire five-step workflow is expressed as natural-language instructions**. There is no Python code for step sequencing, conditional logic, or state management. The Responses API reads these instructions and autonomously orchestrates the tool calls to complete every step.
+
+For comparison, a simpler skill requires only a few lines:
+
 ```yaml
 # skills/email_summary.yaml
 name: email_summary
 description: >
   Summarize unread or recent emails, highlight items that need the user's
   attention, or find specific emails.
-model: mini              # "mini" → gpt-5.4-mini  |  "full" → gpt-5.2
-conversational: false    # true = maintain session history for follow-ups
+model: mini              # "mini" → gpt-5.4-mini (cost-efficient)
+conversational: false
 tools:
   - query_workiq
   - log_progress
@@ -109,6 +170,8 @@ instructions: |
   You are an Email Summary Agent that helps the user stay on top of their inbox.
   ...
 ```
+
+This skill was added with **zero lines of Python** — just a YAML file dropped into the `skills/` folder.
 
 | Field | Purpose |
 |---|---|
