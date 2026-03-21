@@ -532,7 +532,7 @@ On startup, the test client:
         │                                    │                              │
         │                                    │◄──── XADD outbox:{email} ────│
         │                                    │      {task_id, status, text, │
-        │◄── XREAD outbox:{email} ──────────│       in_reply_to: msg_id}   │
+        │◄── XREAD outbox:{email} ────────── │       in_reply_to: msg_id}   │
         │    match in_reply_to == msg_id     │                              │
         │                                    │                              │
         │    print response                  │                              │
