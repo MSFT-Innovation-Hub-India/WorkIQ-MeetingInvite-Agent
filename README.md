@@ -17,7 +17,7 @@ Platforms like Claude CoWork and OpenClaw are defining the next wave of AI — a
 | **Concurrent request isolation** | Multiple requests (local + remote) are tracked independently. Each gets its own UI bubble and progress stream — no cross-talk. |
 | **Skills-driven extensibility** | Each capability is a declarative YAML file. Add a new skill by dropping a YAML file into `skills/` — no code changes, no redeployment. |
 | **Background operation** | Runs invisibly via `pythonw.exe` — no console window, no taskbar clutter until you summon it. |
-| **Global hotkey** | Press **Ctrl+Alt+M** anywhere to toggle the chat UI. |
+| **System tray icon** | Left-click the tray icon to show/hide the chat UI. Right-click for a context menu (Show / Hide, Quit). |
 | **Toast notifications** | Native Windows 10/11 toasts for task progress and completion. Click a toast to open the UI. |
 | **Intelligent routing** | A master router classifies every request and delegates to the appropriate skill-specific sub-agent. |
 | **Adaptive model selection** | Complex workflows use a full LLM (`gpt-5.2`); Q&A and general responses use a smaller, faster model (`gpt-5.4-mini`) for cost-efficient responsiveness. |
@@ -201,8 +201,8 @@ The **entire five-step workflow is expressed as natural-language instructions**.
 │  └─────────────────────┘    │  ┌────────▼────────────────────▼─────────┐ │ │
 │                             │  │          Router (Master Agent)        │ │ │
 │  ┌────────────────────┐     │  │          Azure OpenAI gpt-5.2         │ │ │
-│  │ Global Hotkey      │     │  │   (prompt auto-built from skill       │ │ │
-│  │ (Ctrl+Alt+M)       │     │  │    descriptions)                      │ │ │
+│  │ System Tray Icon   │     │  │   (prompt auto-built from skill       │ │ │
+│  │ (left/right-click) │     │  │    descriptions)                      │ │ │
 │  └────────────────────┘     │  └───────────────┬───────────────────────┘ │ │
 │                             │                  │ classifies intent       │ │
 │  ┌─────────────────────┐    │         ┌────────▼────────┐                │ │
@@ -269,7 +269,7 @@ The **entire five-step workflow is expressed as natural-language instructions**.
 
 ### How It All Fits Together
 
-1. **Single-process launcher** (`meeting_agent.py`) — Entry point. Starts WebSocket/HTTP servers, registers the global hotkey, configures the task queue, optionally starts the Redis bridge, shows a startup toast, and enters the pywebview event loop.
+1. **Single-process launcher** (`meeting_agent.py`) — Entry point. Starts WebSocket/HTTP servers, starts the system tray icon, configures the task queue, optionally starts the Redis bridge, shows a startup toast, and enters the pywebview event loop.
 
 2. **WebSocket server** (port `18080`) — Communication backbone between the chat UI and the Python backend. User messages, agent responses, progress updates, auth status, queue notifications, and remote message alerts all flow over this channel as JSON.
 
@@ -352,7 +352,7 @@ The `in_reply_to` field correlates outbox responses to inbox `msg_id` values, en
 ### Window Management
 
 - pywebview window starts **hidden**. Close hides rather than quits.
-- **Global hotkey** (`Ctrl+Alt+M`) via `pynput.keyboard.GlobalHotKeys`.
+- **System tray icon** — Pure Win32 implementation via `ctypes` in `tray_icon.py`. Left-click to show/hide; right-click for a context menu (Show / Hide, Quit). Runs its own message pump in a background thread, independent of pywebview.
 - **Toast click** opens `http://127.0.0.1:18081/show` to bring up the window.
 - **Custom taskbar icon** via `SetCurrentProcessExplicitAppUserModelID` + `WM_SETICON` to override default `pythonw.exe` grouping.
 
@@ -371,7 +371,7 @@ All logs are written to `~/.workiq-assistant/agent.log` — routing decisions, t
 ```
 workiq-assistant/
 ├── meeting_agent.py       # Main entry point — launcher, WebSocket/HTTP servers,
-│                          #   pywebview window, hotkey, toast, task queue + Redis wiring
+│                          #   pywebview window, tray icon, toast, task queue + Redis wiring
 ├── agent_core.py          # Core agent logic — router, skill loader, tool loader,
 │                          #   auth helpers, shared credential (no hardcoded tools/skills)
 ├── task_queue.py           # FIFO task queue — worker thread, request classification,
@@ -380,6 +380,8 @@ workiq-assistant/
 │                          #   agent presence registration, Entra ID credential_provider
 ├── agent.py               # Console entry point — terminal-based interaction for
 │                          #   development and debugging (no UI, no background mode)
+├── tray_icon.py           # System tray icon — pure Win32 ctypes, own message pump
+│                          #   thread. Left-click show/hide, right-click context menu.
 ├── outlook_helper.py      # Azure Communication Services — .ics calendar invite
 │                          #   construction, email delivery, organizer resolution
 ├── chat_ui.html           # Chat UI — Markdown rendering, progress steps, remote
@@ -579,9 +581,59 @@ All configuration is in the `.env` file:
 | `python-dotenv` | Loading `.env` configuration |
 | `pywebview` | Native desktop window for the chat UI |
 | `websockets` | WebSocket server for UI ↔ backend communication |
-| `pynput` | Global keyboard hotkey listener |
 | `winotify` | Windows 10/11 native toast notifications |
 | `pyyaml` | YAML parsing for skill definitions |
 | `tzlocal` | Auto-detection of the system timezone |
 | `redis` | Redis client (cluster mode support) |
 | `redis-entraid` | Entra ID credential provider for passwordless Redis authentication |
+
+---
+
+## System Tray Icon
+
+The agent places a persistent icon in the Windows system tray (notification area) so it can be summoned without remembering a keyboard shortcut.
+
+### User interaction
+
+| Action | Result |
+|---|---|
+| **Left-click** the tray icon | Show or hide the chat window |
+| **Right-click** the tray icon | Context menu: **Show / Hide**, **Quit** |
+| **Click a toast notification** | Opens the chat window (via the local HTTP endpoint) |
+| **Remote message from Teams** | Task completes → window is shown automatically |
+
+### Why not `pystray` or `pynput`?
+
+- **`pystray`** requires the main thread's message loop and conflicts with `pywebview`, which also requires the main thread on Windows. In testing the tray icon never appeared.
+- **`pynput`** installs a low-level global keyboard hook (`SetWindowsHookEx`) that intercepts every keystroke. If the Python process is slow (GIL contention from multiple threads), the hook stalls the Windows input pipeline — freezing both keyboard and mouse system-wide. This was the primary cause of severe input lag observed in earlier versions.
+
+### Implementation: raw Win32 via `ctypes`
+
+The system tray is implemented in `tray_icon.py` using direct Win32 API calls through Python's built-in `ctypes` module — **zero extra dependencies**.
+
+**How it works:**
+
+1. **Background thread** — The tray icon runs in its own daemon thread (`tray-icon`) with its own Win32 message pump (`GetMessageW` loop). This avoids conflicts with pywebview's main-thread event loop.
+
+2. **Hidden window** — A hidden message-only window (`CreateWindowExW`) is created to receive tray icon callback messages (`WM_TRAYICON`). This is standard Win32 practice — the tray icon needs an `HWND` to send notifications to.
+
+3. **`NOTIFYICONDATAW` struct** — The full Vista+ layout of the structure is defined (976 bytes), including all fields through `hBalloonIcon`. Earlier attempts with a minimal struct (`cbSize` too small) caused `Shell_NotifyIconW` to silently fail on modern Windows.
+
+4. **`WNDCLASSW` struct** — Defined locally because `ctypes.wintypes` does not include it. A `WNDPROC` callback handles `WM_TRAYICON` (left/right-click), `WM_COMMAND` (menu selections), and `WM_DESTROY` (cleanup).
+
+5. **Prevent callback GC** — The `WNDPROC` C function pointer is stored as `self._wndproc_ref` on the `TrayIcon` instance to prevent garbage collection. Without this pin, Python's GC would free the callback while the Win32 message loop still references it, causing a crash.
+
+6. **Icon loading** — Uses `LoadImageW` with `LR_LOADFROMFILE` to load `agent_icon.ico` directly. Falls back to the default application icon (`IDI_APPLICATION`) if the `.ico` file is missing.
+
+7. **Context menu** — `CreatePopupMenu` + `TrackPopupMenu` for the right-click menu. `SetForegroundWindow` is called first (required by Windows so the menu dismisses when clicking elsewhere).
+
+### Key Win32 APIs used
+
+| API | Purpose |
+|---|---|
+| `Shell_NotifyIconW(NIM_ADD, ...)` | Add the icon to the system tray |
+| `Shell_NotifyIconW(NIM_DELETE, ...)` | Remove it on shutdown |
+| `RegisterClassW` / `CreateWindowExW` | Hidden window for message routing |
+| `GetMessageW` / `DispatchMessageW` | Message pump in the background thread |
+| `LoadImageW` | Load `.ico` from disk |
+| `CreatePopupMenu` / `TrackPopupMenu` | Right-click context menu |

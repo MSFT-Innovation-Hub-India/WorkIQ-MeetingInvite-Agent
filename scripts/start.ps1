@@ -9,4 +9,4 @@ if (-not (Test-Path $pythonw)) {
 }
 
 Start-Process -FilePath $pythonw -ArgumentList $agent -WorkingDirectory $projectDir -WindowStyle Hidden
-Write-Host "WorkIQ Assistant started. Press Ctrl+Alt+M to open the UI." -ForegroundColor Green
+Write-Host "WorkIQ Assistant started. Look for the tray icon near the clock." -ForegroundColor Green

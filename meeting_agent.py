@@ -4,9 +4,9 @@ WorkIQ Assistant — Single-process launcher.
 Runs completely invisibly:
   • WebSocket server runs in a background thread
   • pywebview window starts HIDDEN
-  • Press Ctrl+Shift+M (Cmd+Shift+M on Mac) to show/hide the chat UI
+  • System tray icon: left-click to show/hide, right-click for menu
   • Toast notifications appear regardless of UI visibility
-  • No console window, no taskbar icon until you summon it
+  • No console window until you summon it via tray icon or toast click
 
 Launch:  pythonw meeting_agent.py          (invisible, no console)
    or:   python  meeting_agent.py          (with console for debugging)
@@ -60,8 +60,6 @@ IS_WIN = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"
 HOST = "127.0.0.1"
 PORT = 18080
-HOTKEY_COMBO = "<cmd>+<shift>+m" if IS_MAC else "<ctrl>+<alt>+m"
-HOTKEY_LABEL = "Cmd+Shift+M" if IS_MAC else "Ctrl+Alt+M"
 
 # ---------------------------------------------------------------------------
 # Globals
@@ -377,20 +375,40 @@ def _toggle_window():
 
 
 # ---------------------------------------------------------------------------
-# Global hotkey
+# System tray icon
 # ---------------------------------------------------------------------------
 
-def _setup_hotkey():
+_tray: "TrayIcon | None" = None
+
+
+def _setup_tray():
+    """Start the Win32 system tray icon (Windows only)."""
+    global _tray
+    if not IS_WIN:
+        return
     try:
-        from pynput import keyboard
-        listener = keyboard.GlobalHotKeys({HOTKEY_COMBO: _toggle_window})
-        listener.daemon = True
-        listener.start()
-        logger.info("Global hotkey registered: %s", HOTKEY_LABEL)
-    except ImportError:
-        logger.warning("pynput not installed — hotkey disabled")
+        from tray_icon import TrayIcon
+        icon_path = str(_SCRIPT_DIR / "agent_icon.ico")
+        _tray = TrayIcon(
+            on_show=_toggle_window,
+            on_quit=_quit_app,
+            icon_path=icon_path,
+            tooltip="WorkIQ Assistant",
+        )
+        _tray.start()
+        logger.info("System tray icon started")
     except Exception as e:
-        logger.warning("Could not register hotkey: %s", e)
+        logger.warning("Could not start tray icon: %s", e)
+
+
+def _quit_app():
+    """Cleanly shut down the agent."""
+    logger.info("Quit requested from tray menu")
+    if _tray:
+        _tray.stop()
+    if _window:
+        _window.destroy()
+    os._exit(0)
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +441,7 @@ def main():
 
     logger.info("=" * 50)
     logger.info("WorkIQ Assistant starting (single-process mode)")
-    logger.info("Hotkey: %s  |  Log: %s", HOTKEY_LABEL, LOG_FILE)
+    logger.info("Log: %s", LOG_FILE)
     logger.info("=" * 50)
 
     # 1. Configure the task queue
@@ -472,11 +490,11 @@ def main():
     server_thread = threading.Thread(target=_run_server, daemon=True)
     server_thread.start()
 
-    # 3. Register global hotkey
-    _setup_hotkey()
+    # 3. Start system tray icon (left-click to show/hide, right-click for menu)
+    _setup_tray()
 
     # 4. Toast to let user know it's running
-    notify("WorkIQ Assistant", f"Running in background. Press {HOTKEY_LABEL} to open.")
+    notify("WorkIQ Assistant", "Running in background. Click the tray icon to open.")
 
     # 5. Tell Windows this is a distinct app (not generic pythonw.exe)
     #    so the taskbar shows our custom icon instead of the Python icon.
@@ -485,7 +503,15 @@ def main():
             "Microsoft.WorkIQAssistant"
         )
 
-    # 6. Create the pywebview window (starts hidden)
+    # 6. Disable Chromium GPU acceleration to reduce memory and heat.
+    #    WebView2 respects this env var for additional Chromium flags.
+    if IS_WIN:
+        os.environ.setdefault(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--disable-gpu --disable-gpu-compositing",
+        )
+
+    # 7. Create the pywebview window (starts hidden)
     _window = webview.create_window(
         title="WorkIQ Assistant",
         url=str(_HTML_PATH),
@@ -504,9 +530,10 @@ def main():
 
     _window.events.shown += _on_shown
 
-    # 7. Start pywebview event loop (blocks until process exits)
+    # 8. Start pywebview event loop (blocks until process exits)
     _icon_path = _SCRIPT_DIR / "agent_icon.ico"
-    webview.start(debug=False, icon=str(_icon_path) if _icon_path.exists() else None)
+    webview.start(debug=False, private_mode=True,
+                  icon=str(_icon_path) if _icon_path.exists() else None)
 
 
 if __name__ == "__main__":
