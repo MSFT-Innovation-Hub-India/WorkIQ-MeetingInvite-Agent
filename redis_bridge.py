@@ -80,12 +80,33 @@ class RedisBridge:
             socket_connect_timeout=10,
         )
         self._client.ping()
+        self._connected_at = time.time()
         logger.info("Redis bridge connected to %s:%d (credential_provider)",
                      self._host, self._port)
 
+    _MAX_CONNECTION_AGE = 1800  # force reconnect every 30 minutes
+
     def _ensure_connected(self):
-        """Reconnect if the client isn't set."""
-        if self._client is None:
+        """Reconnect if the client is missing or the connection is stale."""
+        age = time.time() - getattr(self, '_connected_at', 0)
+        if self._client is None or age > self._MAX_CONNECTION_AGE:
+            if self._client is not None:
+                logger.info("Redis connection stale (%.0fs) — forcing reconnect", age)
+                try:
+                    self._client.close()
+                except Exception:
+                    pass
+                self._client = None
+            self._connect()
+
+    def _ping_or_reconnect(self):
+        """Verify the connection is alive; reconnect if not."""
+        try:
+            self._ensure_connected()
+            self._client.ping()
+        except Exception as e:
+            logger.warning("Redis PING failed (%s) — reconnecting", e)
+            self._client = None
             self._connect()
 
     # ------------------------------------------------------------------
@@ -215,7 +236,11 @@ class RedisBridge:
     # ------------------------------------------------------------------
 
     def on_task_done(self, task):
-        """Write the task result to the outbox stream (only for remote tasks)."""
+        """Write the task result to the outbox stream (only for remote tasks).
+
+        Uses PING-before-write and retry-with-reconnect to guard against
+        stale connections that silently drop writes after long idle periods.
+        """
         if task.source != "remote":
             return
 
@@ -223,17 +248,26 @@ class RedisBridge:
         with self._pending_lock:
             in_reply_to = self._pending_replies.pop(task.id, "")
 
-        try:
-            self._ensure_connected()
-            self._client.xadd(self._outbox_key, {
-                "task_id": task.id,
-                "status": task.status,
-                "text": (task.result or task.error or "")[:4000],
-                "ts": str(time.time()),
-                "in_reply_to": in_reply_to,
-            })
-            # Keep the outbox trimmed
-            self._client.xtrim(self._outbox_key, maxlen=100, approximate=True)
-            logger.info("Outbox reply for task %s (in_reply_to=%s)", task.id, in_reply_to)
-        except Exception as e:
-            logger.error("Failed to write outbox for task %s: %s", task.id, e)
+        payload = {
+            "task_id": task.id,
+            "status": task.status,
+            "text": (task.result or task.error or "")[:4000],
+            "ts": str(time.time()),
+            "in_reply_to": in_reply_to,
+        }
+
+        for attempt in range(2):
+            try:
+                self._ping_or_reconnect()
+                self._client.xadd(self._outbox_key, payload)
+                # Keep the outbox trimmed
+                self._client.xtrim(self._outbox_key, maxlen=100, approximate=True)
+                logger.info("Outbox reply for task %s (in_reply_to=%s, attempt=%d)",
+                            task.id, in_reply_to, attempt + 1)
+                return  # success
+            except Exception as e:
+                logger.warning("Outbox write attempt %d failed for task %s: %s",
+                               attempt + 1, task.id, e)
+                self._client = None  # force full reconnect on retry
+
+        logger.error("Failed to write outbox for task %s after 2 attempts", task.id)
