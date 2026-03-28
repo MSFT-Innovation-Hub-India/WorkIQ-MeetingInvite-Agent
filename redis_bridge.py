@@ -205,7 +205,11 @@ class RedisBridge:
                 self._stopping.wait(timeout=5)
 
     def _handle_inbox_message(self, stream_id: str, fields: dict):
-        """Process a single inbox message."""
+        """Process a single inbox message.
+
+        Routes the message first — system skills (queued=False) run inline
+        so they don't appear as "running tasks" in their own status output.
+        """
         text = fields.get("text", "").strip()
         sender = fields.get("sender", "remote")
         msg_id = fields.get("msg_id", stream_id)
@@ -224,12 +228,65 @@ class RedisBridge:
                 "text": text,
             })
 
-        task = self._task_queue.submit_task(text, source="remote",
-                                            skill_name=None)
+        # Route first to check if this is a system (non-queued) skill
+        from agent_core import route, get_skill, run_skill
 
-        # Remember the correlation for the outbox reply
+        try:
+            skill_name = route(text)
+            skill = get_skill(skill_name)
+        except Exception as e:
+            logger.error("Router failed for remote message: %s", e, exc_info=True)
+            skill_name = None
+            skill = None
+
+        if skill and not skill.queued:
+            # System skill — run inline and write reply directly to outbox
+            logger.info("Remote system task (skill=%s): %.80s", skill_name, text)
+            threading.Thread(
+                target=self._run_system_task_remote,
+                args=(skill_name, text, msg_id),
+                daemon=True,
+            ).start()
+        else:
+            # Business task — enqueue as before
+            task = self._task_queue.submit_task(text, source="remote",
+                                                skill_name=skill_name)
+
+            # Remember the correlation for the outbox reply
+            with self._pending_lock:
+                self._pending_replies[task.id] = msg_id
+
+    def _run_system_task_remote(self, skill_name: str, text: str, msg_id: str):
+        """Run a non-queued skill for a remote message and write the reply to outbox."""
+        import uuid
+        from agent_core import run_skill
+        from task_queue import TaskItem
+
+        task_id = uuid.uuid4().hex[:8]
+
+        # Pre-register the correlation so on_task_done can find the msg_id
         with self._pending_lock:
-            self._pending_replies[task.id] = msg_id
+            self._pending_replies[task_id] = msg_id
+
+        try:
+            result = run_skill(skill_name, text)
+            status = "completed"
+            logger.info("Remote system task complete (skill=%s): %.100s", skill_name, result)
+        except Exception as e:
+            logger.error("Remote system task failed (skill=%s): %s", skill_name, e, exc_info=True)
+            result = str(e)
+            status = "failed"
+
+        # Build a synthetic task to reuse on_task_done's outbox write logic
+        task = TaskItem(
+            id=task_id,
+            user_input=text,
+            source="remote",
+            status=status,
+            result=result if status == "completed" else None,
+            error=result if status == "failed" else None,
+        )
+        self.on_task_done(task)
 
     # ------------------------------------------------------------------
     # Outbox writer (called by task_queue.on_task_complete)
