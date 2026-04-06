@@ -12,7 +12,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 
 @dataclass
@@ -135,7 +135,7 @@ class TaskQueue:
             "source": task.source,
         })
         if self._on_notify:
-            self._on_notify("WorkIQ Assistant", "Working on your request...")
+            self._on_notify("Hub SE Agent", "Working on your request...")
 
         def on_progress(kind: str, message: str):
             task.progress_log.append((time.time(), kind, message))

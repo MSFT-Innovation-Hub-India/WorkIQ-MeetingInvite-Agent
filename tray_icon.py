@@ -15,7 +15,7 @@ import os
 import threading
 from pathlib import Path
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 # Win32 constants
 WM_USER = 0x0400
@@ -100,7 +100,7 @@ class TrayIcon:
     """Win32 system-tray icon with its own message-pump thread."""
 
     def __init__(self, *, on_show, on_quit, icon_path: str | None = None,
-                 tooltip: str = "WorkIQ Assistant"):
+                 tooltip: str = "Hub SE Agent"):
         self._on_show = on_show
         self._on_quit = on_quit
         self._icon_path = icon_path
@@ -137,7 +137,7 @@ class TrayIcon:
         hinstance = kernel32.GetModuleHandleW(None)
 
         # Register window class
-        class_name = "WorkIQTrayClass"
+        class_name = "HubSETrayClass"
         wc = WNDCLASSW()
         wc.lpfnWndProc = self._wndproc_ref
         wc.hInstance = hinstance
@@ -147,7 +147,7 @@ class TrayIcon:
 
         # Create hidden message-only window
         self._hwnd = user32.CreateWindowExW(
-            0, class_name, "WorkIQ Tray", 0,
+            0, class_name, "Hub SE Tray", 0,
             0, 0, 0, 0,
             None, None, hinstance, None,
         )

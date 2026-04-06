@@ -2,7 +2,7 @@
 
 ## Architecture
 
-WorkIQ Assistant is a **single-process, multi-threaded Windows desktop agent** built with Python 3.12+. It combines a WebSocket server, pywebview UI, system tray icon, task queue, and optional Redis bridge for remote messaging.
+Hub SE Agent is a **single-process, multi-threaded Windows desktop agent** built with Python 3.12+. It combines a WebSocket server, pywebview UI, system tray icon, task queue, and optional Redis bridge for remote messaging.
 
 | Component | File | Role |
 |---|---|---|
@@ -32,7 +32,7 @@ Required env vars: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_CHAT_MODEL`, `AZURE_OP
 
 - Python 3.12+ type hints (`str | None`, `dict[str, str]`)
 - Module-level private globals prefixed with `_`
-- Logging via `logging.getLogger("workiq_assistant")`
+- Logging via `logging.getLogger("hub_se_agent")`
 - No linter or formatter configured — keep consistent with existing files
 
 ## Adding Skills and Tools

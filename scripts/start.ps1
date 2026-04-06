@@ -1,4 +1,4 @@
-# Start WorkIQ Assistant (invisible, detached from this terminal)
+# Start Hub SE Agent (invisible, detached from this terminal)
 $projectDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pythonw = Join-Path $projectDir ".venv\Scripts\pythonw.exe"
 $agent = Join-Path $projectDir "meeting_agent.py"
@@ -9,4 +9,4 @@ if (-not (Test-Path $pythonw)) {
 }
 
 Start-Process -FilePath $pythonw -ArgumentList $agent -WorkingDirectory $projectDir -WindowStyle Hidden
-Write-Host "WorkIQ Assistant started. Look for the tray icon near the clock." -ForegroundColor Green
+Write-Host "Hub SE Agent started. Look for the tray icon near the clock." -ForegroundColor Green

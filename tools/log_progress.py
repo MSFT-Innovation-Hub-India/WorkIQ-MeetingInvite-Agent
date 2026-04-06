@@ -5,7 +5,7 @@ Log a formatted progress update for the user to see in real time.
 
 import logging
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 
 SCHEMA = {

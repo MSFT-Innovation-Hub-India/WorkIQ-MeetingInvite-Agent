@@ -315,7 +315,7 @@ The **entire five-step workflow is expressed as natural-language instructions**.
 A single `InteractiveBrowserCredential` from Azure Identity SDK is shared across all components — OpenAI, WorkIQ, ACS, and Redis:
 
 1. **First launch** — The UI shows a "Not signed in" banner. Click **Sign In** to open a browser for Entra ID authentication.
-2. **Token caching** — The `AuthenticationRecord` is serialized to `~/.workiq-assistant/auth_record.json`. The token cache is persisted via Windows Credential Manager.
+2. **Token caching** — The `AuthenticationRecord` is serialized to `~/.hub-se-agent/auth_record.json`. The token cache is persisted via Windows Credential Manager.
 3. **Subsequent launches** — The saved record enables silent token refresh — no browser prompt.
 4. **Token refresh** — The OpenAI client checks expiry with a 5-minute buffer. If silent refresh fails, it falls back to interactive browser login.
 5. **Shared credential** — The same credential instance is shared with `outlook_helper.py` (via `set_credential()`) and with the Redis bridge (via `get_credential()`). This avoids duplicate browser prompts and prevents `DefaultAzureCredential` from spawning `az` CLI subprocesses under `pythonw.exe`.
@@ -362,14 +362,14 @@ All subprocess calls use `subprocess.CREATE_NO_WINDOW` on Windows to prevent `cm
 
 ### Logging
 
-All logs are written to `~/.workiq-assistant/agent.log` — routing decisions, tool calls, task queue operations, Redis bridge events, and authentication.
+All logs are written to `~/.hub-se-agent/agent.log` — routing decisions, tool calls, task queue operations, Redis bridge events, and authentication.
 
 ---
 
 ## Project Structure
 
 ```
-workiq-assistant/
+hub-se-agent/
 ├── meeting_agent.py       # Main entry point — launcher, WebSocket/HTTP servers,
 │                          #   pywebview window, tray icon, toast, task queue + Redis wiring
 ├── agent_core.py          # Core agent logic — router, skill loader, tool loader,
@@ -432,7 +432,7 @@ workiq-assistant/
 ```powershell
 # Clone the repository
 git clone <repo-url>
-cd workiq-assistant
+cd hub-se-agent
 
 # Create virtual environment
 python -m venv .venv
@@ -480,7 +480,7 @@ Start-Process -FilePath .\.venv\Scripts\pythonw.exe -ArgumentList "meeting_agent
 .\scripts\autostart.ps1 uninstall
 ```
 
-This places a `WorkIQAssistant.vbs` launcher in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`, which starts the assistant silently at every Windows login.
+This places a `HubSEAgent.vbs` launcher in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`, which starts the agent silently at every Windows login.
 
 ---
 
@@ -492,7 +492,7 @@ The `test-client/` folder contains a **console REPL** that simulates a remote se
 
 - The agent must be **running** (via `.\scripts\start.ps1`)
 - `AZ_REDIS_CACHE_ENDPOINT` must be set in `.env`
-- The test client reuses the agent's `.env` (loaded from the parent directory) and its saved auth record from `~/.workiq-assistant/auth_record.json`
+- The test client reuses the agent's `.env` (loaded from the parent directory) and its saved auth record from `~/.hub-se-agent/auth_record.json`
 
 ### Running the test client
 

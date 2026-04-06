@@ -7,7 +7,7 @@ import logging
 
 from outlook_helper import create_outlook_meeting
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 
 SCHEMA = {

@@ -21,7 +21,7 @@ from outlook_helper import _resolve_organizer
 
 def main():
     print("=" * 60)
-    print("  WorkIQ Assistant — Console")
+    print("  Hub SE Agent — Console")
     print("  Ask anything or describe a meeting to schedule.")
     print("  Type 'new' to start a fresh conversation, 'quit' to exit.")
     print("=" * 60)

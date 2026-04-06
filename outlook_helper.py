@@ -9,7 +9,7 @@ from azure.communication.email import EmailClient
 from azure.identity import InteractiveBrowserCredential
 from dotenv import load_dotenv
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 load_dotenv()
 
@@ -75,7 +75,7 @@ def _resolve_organizer() -> tuple[str, str]:
     payload += "=" * (4 - len(payload) % 4)
     claims = json.loads(base64.b64decode(payload))
 
-    _organizer_name = claims.get("name", "WorkIQ Assistant")
+    _organizer_name = claims.get("name", "Hub SE Agent")
     _organizer_email = claims.get("upn") or claims.get("preferred_username") or claims.get("email", "unknown@unknown.com")
 
     logger.info("[Auth] Organizer resolved: %s <%s>", _organizer_name, _organizer_email)

@@ -30,7 +30,7 @@ from outlook_helper import set_credential
 
 load_dotenv()
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 ENDPOINT = os.environ["AZURE_OPENAI_ENDPOINT"]
 CHAT_MODEL = os.environ["AZURE_OPENAI_CHAT_MODEL"]
@@ -38,9 +38,9 @@ CHAT_MODEL_SMALL = os.environ.get("AZURE_OPENAI_CHAT_MODEL_SMALL", CHAT_MODEL)
 API_VERSION = os.environ["AZURE_OPENAI_API_VERSION"]
 
 # Persistent token cache + authentication record
-_cache_options = TokenCachePersistenceOptions(name="workiq_assistant")
+_cache_options = TokenCachePersistenceOptions(name="hub_se_agent")
 _tenant_id = os.environ.get("AZURE_TENANT_ID")
-_AUTH_RECORD_PATH = Path.home() / ".workiq-assistant" / "auth_record.json"
+_AUTH_RECORD_PATH = Path.home() / ".hub-se-agent" / "auth_record.json"
 _AUTH_RECORD_PATH.parent.mkdir(exist_ok=True)
 
 

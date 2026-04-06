@@ -1,11 +1,11 @@
-# Stop WorkIQ Assistant
+# Stop Hub SE Agent
 $stopped = $false
 Get-Process pythonw -ErrorAction SilentlyContinue | ForEach-Object {
     Stop-Process -Id $_.Id -Force
     $stopped = $true
 }
 if ($stopped) {
-    Write-Host "WorkIQ Assistant stopped." -ForegroundColor Yellow
+    Write-Host "Hub SE Agent stopped." -ForegroundColor Yellow
 } else {
-    Write-Host "WorkIQ Assistant is not running." -ForegroundColor Gray
+    Write-Host "Hub SE Agent is not running." -ForegroundColor Gray
 }

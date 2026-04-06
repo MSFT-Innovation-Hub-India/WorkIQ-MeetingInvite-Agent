@@ -1,4 +1,4 @@
-# Add/remove WorkIQ Assistant from Windows auto-start
+# Add/remove Hub SE Agent from Windows auto-start
 # Usage:  .\autostart.ps1 install     — start at login
 #         .\autostart.ps1 uninstall   — remove from login
 
@@ -9,7 +9,7 @@ param(
 )
 
 $startup = [System.IO.Path]::Combine($env:APPDATA, "Microsoft\Windows\Start Menu\Programs\Startup")
-$vbsPath = Join-Path $startup "WorkIQAssistant.vbs"
+$vbsPath = Join-Path $startup "HubSEAgent.vbs"
 $projectDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pythonw = Join-Path $projectDir ".venv\Scripts\pythonw.exe"
 $agent = Join-Path $projectDir "meeting_agent.py"
@@ -27,7 +27,7 @@ WshShell.Run """$pythonw"" ""$agent""", 0, False
 "@
     Set-Content -Path $vbsPath -Value $vbs -Encoding UTF8
     Write-Host "Auto-start installed: $vbsPath" -ForegroundColor Green
-    Write-Host "WorkIQ Assistant will start automatically at login." -ForegroundColor Green
+    Write-Host "Hub SE Agent will start automatically at login." -ForegroundColor Green
 }
 elseif ($Action -eq "uninstall") {
     if (Test-Path $vbsPath) {

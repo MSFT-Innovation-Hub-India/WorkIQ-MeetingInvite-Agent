@@ -1,5 +1,5 @@
 """
-WorkIQ Test Client — Console REPL that talks to the agent via Redis streams.
+Hub SE Agent Test Client — Console REPL that talks to the agent via Redis streams.
 
 Simulates a remote sender (like Teams) by:
   1. Pushing messages to  workiq:inbox:{email}
@@ -45,8 +45,8 @@ def _decode_jwt_claims(token: str) -> dict:
 def _create_credential():
     """Create an InteractiveBrowserCredential, reusing the agent's saved auth record."""
     tenant_id = os.environ.get("AZURE_TENANT_ID")
-    cache_options = TokenCachePersistenceOptions(name="workiq_assistant")
-    auth_record_path = Path.home() / ".workiq-assistant" / "auth_record.json"
+    cache_options = TokenCachePersistenceOptions(name="hub_se_agent")
+    auth_record_path = Path.home() / ".hub-se-agent" / "auth_record.json"
 
     record = None
     if auth_record_path.exists():
@@ -98,7 +98,7 @@ def _connect_redis(host: str, port: int):
 
 def main():
     print("=" * 50)
-    print("  WorkIQ Test Client (Redis console)")
+    print("  Hub SE Agent Test Client (Redis console)")
     print("=" * 50)
     print()
 

@@ -19,7 +19,7 @@ from redis_entraid.cred_provider import EntraIdCredentialsProvider
 from redis_entraid.identity_provider import DefaultAzureCredentialProvider
 from redis.auth.token_manager import TokenManagerConfig, RetryPolicy
 
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 
 class RedisBridge:

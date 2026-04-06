@@ -1,5 +1,5 @@
 """
-WorkIQ Assistant — Single-process launcher.
+Hub SE Agent — Single-process launcher.
 
 Runs completely invisibly:
   • WebSocket server runs in a background thread
@@ -32,7 +32,7 @@ import webview
 # Logging — file + (optionally) console
 # ---------------------------------------------------------------------------
 
-LOG_DIR = Path.home() / ".workiq-assistant"
+LOG_DIR = Path.home() / ".hub-se-agent"
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "agent.log"
 _TOAST_SCRIPT = LOG_DIR / "_toast.ps1"
@@ -48,7 +48,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
-logger = logging.getLogger("workiq_assistant")
+logger = logging.getLogger("hub_se_agent")
 
 from agent_core import run_agent, run_skill, check_azure_auth, run_az_login, reset_qa_history, get_loaded_skills, route, get_skill, get_credential
 from outlook_helper import _resolve_organizer
@@ -88,7 +88,7 @@ def notify(title: str, message: str):
             from winotify import Notification
             icon_path = _SCRIPT_DIR / "agent_icon.png"
             toast = Notification(
-                app_id="WorkIQ Assistant",
+                app_id="Hub SE Agent",
                 title=title,
                 msg=message[:300],
                 icon=str(icon_path) if icon_path.exists() else "",
@@ -236,7 +236,7 @@ async def _handler(ws):
 def _handle_signin():
     _broadcast({"type": "progress", "kind": "step",
                 "message": "Opening browser for Azure sign-in..."})
-    notify("WorkIQ Assistant", "Opening browser for Azure sign-in...")
+    notify("Hub SE Agent", "Opening browser for Azure sign-in...")
     ok, msg = run_az_login()
     _broadcast({"type": "signin_status", "ok": ok, "message": msg})
     if ok:
@@ -280,7 +280,7 @@ def _run_server():
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
                     self.end_headers()
-                    self.wfile.write(b"<html><body><script>window.close()</script>Opening WorkIQ Assistant...</body></html>")
+                    self.wfile.write(b"<html><body><script>window.close()</script>Opening Hub SE Agent...</body></html>")
 
                 def log_message(self, *args):
                     pass  # suppress HTTP logs
@@ -327,7 +327,7 @@ def _set_taskbar_icon():
         )
 
         # Find the top-level window by title
-        hwnd = user32.FindWindowW(None, "WorkIQ Assistant")
+        hwnd = user32.FindWindowW(None, "Hub SE Agent")
         if hwnd and hicon_big:
             user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon_big)
         if hwnd and hicon_small:
@@ -393,7 +393,7 @@ def _setup_tray():
             on_show=_toggle_window,
             on_quit=_quit_app,
             icon_path=icon_path,
-            tooltip="WorkIQ Assistant",
+            tooltip="Hub SE Agent",
         )
         _tray.start()
         logger.info("System tray icon started")
@@ -440,7 +440,7 @@ def main():
     global _window
 
     logger.info("=" * 50)
-    logger.info("WorkIQ Assistant starting (single-process mode)")
+    logger.info("Hub SE Agent starting (single-process mode)")
     logger.info("Log: %s", LOG_FILE)
     logger.info("=" * 50)
 
@@ -494,13 +494,13 @@ def main():
     _setup_tray()
 
     # 4. Toast to let user know it's running
-    notify("WorkIQ Assistant", "Running in background. Click the tray icon to open.")
+    notify("Hub SE Agent", "Running in background. Click the tray icon to open.")
 
     # 5. Tell Windows this is a distinct app (not generic pythonw.exe)
     #    so the taskbar shows our custom icon instead of the Python icon.
     if IS_WIN:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-            "Microsoft.WorkIQAssistant"
+            "Microsoft.HubSEAgent"
         )
 
     # 6. Disable Chromium GPU acceleration to reduce memory and heat.
@@ -513,7 +513,7 @@ def main():
 
     # 7. Create the pywebview window (starts hidden)
     _window = webview.create_window(
-        title="WorkIQ Assistant",
+        title="Hub SE Agent",
         url=str(_HTML_PATH),
         width=480,
         height=600,

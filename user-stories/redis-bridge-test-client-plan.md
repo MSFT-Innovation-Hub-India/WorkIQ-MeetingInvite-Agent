@@ -56,7 +56,7 @@ test-client/
 
 ### Step B2: Implement `chat.py`
 - **Auth**: `InteractiveBrowserCredential` with same tenant ID from `../.env`, scope `https://redis.azure.com/.default`
-  - Reuse auth record from `~/.workiq-assistant/auth_record.json` if it exists (same user, already signed in from the main agent)
+  - Reuse auth record from `~/.hub-se-agent/auth_record.json` if it exists (same user, already signed in from the main agent)
   - Extract user email from Redis token JWT or ACS token
 - **Redis connect**: Parse `AZ_REDIS_CACHE_ENDPOINT` from `../.env` (parent dir), connect with SSL + token
 - **Startup check**: `GET workiq:agents:{email}` — verify the agent is online, print agent info
