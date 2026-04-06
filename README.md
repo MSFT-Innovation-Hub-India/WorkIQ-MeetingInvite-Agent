@@ -1,8 +1,8 @@
-# WorkIQ Agent
+# WorkIQ-Hub-SE-Agent
 
 **Part 1 of 2** — This is the always-on desktop agent. It works in tandem with a companion cloud application (Part 2) that lets users interact with this agent **remotely from their mobile phones via Microsoft Teams**. Users can leave their computer, send requests from Teams, and receive completed results — including multi-step agentic workflows — without being at their desk.
 
-Platforms like Claude CoWork and OpenClaw are defining the next wave of AI — autonomous agents that live on the user's local computer, act on their behalf, and integrate deeply with the tools they already use. The WorkIQ Agent  exhibits a few of their key design traits — **always-on local execution, skills-driven autonomy, and remote reachability** — applied to a specific class of Microsoft 365 workflow tasks that are commonly performed today and remain painstaking and cumbersome to do manually (resolving contacts across documents, cross-referencing agendas with email directories, sending batches of calendar invites). Like those platforms, the agent runs on the user's computer but can be reached from other channels: a user can message it from **Microsoft Teams on their phone**, ask questions, and have multi-step workflows executed autonomously — no manual intervention, no need to be at the desk.
+Platforms like Claude CoWork and OpenClaw are defining the next wave of AI — autonomous agents that live on the user's local computer, act on their behalf, and integrate deeply with the tools they already use. The WorkIQ-Hub-SE-Agent exhibits a few of their key design traits — **always-on local execution, skills-driven autonomy, and remote reachability** — applied to a specific class of Microsoft 365 workflow tasks that are commonly performed today and remain painstaking and cumbersome to do manually (resolving contacts across documents, cross-referencing agendas with email directories, sending batches of calendar invites). Like those platforms, the agent runs on the user's computer but can be reached from other channels: a user can message it from **Microsoft Teams on their phone**, ask questions, and have multi-step workflows executed autonomously — no manual intervention, no need to be at the desk.
 
 ---
 
@@ -48,7 +48,7 @@ Platforms like Claude CoWork and OpenClaw are defining the next wave of AI — a
   │         Part 2 (Cloud)           │       │        Part 1 (Desktop)          │
   │                                  │       │   ← THIS REPOSITORY →            │
   │   Microsoft Teams                │       │                                  │
-  │     ↕                            │       │   WorkIQ Agent                   │
+  │     ↕                            │       │   WorkIQ-Hub-SE-Agent            │
   │   Teams Relay Service            │       │     • Skills-driven sub-agents   │
   │     ↕                            │       │     • FIFO task queue            │
   │   Azure Managed Redis            │◄─────►│     • Redis bridge (inbox/outbox)│
@@ -81,7 +81,7 @@ WorkIQ alone answers questions but cannot execute multi-step actions. Azure Open
 
 ## Built-in Skills
 
-WorkIQ Agent is **skills-driven** — each capability is a declarative YAML file rather than hardcoded logic. Skills are discovered at startup; the router prompt is auto-built from their descriptions.
+WorkIQ-Hub-SE-Agent is **skills-driven** — each capability is a declarative YAML file rather than hardcoded logic. Skills are discovered at startup; the router prompt is auto-built from their descriptions.
 
 | Skill | Model | Queued | Tools | What it does |
 |---|---|---|---|---|
@@ -521,7 +521,7 @@ On startup, the test client:
 ### How it works
 
 ```
-  test-client (console)              Azure Managed Redis              WorkIQ Agent
+  test-client (console)              Azure Managed Redis              WorkIQ-Hub-SE-Agent
   ──────────────────────             ────────────────────             ──────────────
         │                                    │                              │
         │── XADD inbox:{email} ─────────────►│                              │
