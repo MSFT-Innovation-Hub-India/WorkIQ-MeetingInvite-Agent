@@ -1,0 +1,38 @@
+{
+  "hub_name": "Innovation Hub India",
+  "default_session_start_time": "09:00 AM",
+  "speakers_by_topic": [
+    {
+      "topic": "Pro Code AI",
+      "speakers": ["Srikantan Sankaran", "Divya SK"]
+    },
+    {
+      "topic": "Low Code AI",
+      "speakers": ["Vishakha Arbat", "Pallavi Lokesh"]
+    },
+    {
+      "topic": "No Code AI / Modern Work",
+      "speakers": ["Pallavi Lokesh", "Vishakha Arbat"]
+    },
+    {
+      "topic": "AI Agent Governance",
+      "speakers": ["Pallavi Lokesh", "Srikantan Sankaran"]
+    },
+    {
+      "topic": "Data & Analytics",
+      "speakers": ["Arvind Raman", "Srikantan Sankaran"]
+    },
+    {
+      "topic": "Data Governance",
+      "speakers": ["Arvind Raman"]
+    },
+    {
+      "topic": "AI Security",
+      "speakers": ["Pallavi Lokesh"]
+    },
+    {
+      "topic": "Dynamics 365 CRM, ERP",
+      "speakers": ["Vishakha Arbat"]
+    }
+  ]
+}

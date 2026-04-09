@@ -53,6 +53,7 @@ logger = logging.getLogger("hub_se_agent")
 from agent_core import run_agent, run_skill, check_azure_auth, run_az_login, reset_qa_history, get_loaded_skills, route, get_skill, get_credential
 from outlook_helper import _resolve_organizer
 from task_queue import queue as task_queue
+import hub_config
 
 import uuid
 
@@ -226,6 +227,25 @@ async def _handler(ws):
                     "type": "history_cleared",
                     "message": "Conversation history cleared.",
                 }))
+            elif msg.get("type") == "get_config":
+                config = hub_config.load()
+                await ws.send(json.dumps({
+                    "type": "config_data",
+                    "config": config,
+                }))
+            elif msg.get("type") == "save_config":
+                try:
+                    hub_config.save(msg.get("config", {}))
+                    await ws.send(json.dumps({
+                        "type": "config_saved",
+                        "ok": True,
+                    }))
+                except Exception as e:
+                    await ws.send(json.dumps({
+                        "type": "config_saved",
+                        "ok": False,
+                        "error": str(e),
+                    }))
     except websockets.ConnectionClosed:
         pass
     finally:

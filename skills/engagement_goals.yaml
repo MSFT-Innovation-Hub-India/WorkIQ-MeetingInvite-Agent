@@ -63,6 +63,9 @@ instructions: |
 
   For topics not listed: does it need a different speaker/demo/stack? If yes → separate goal. If no → group together.
 
+  CUSTOMER-LED SESSIONS:
+  Customers sometimes want to present their own business workflows, current state, pain points, or transformation journey at the start of the engagement. This provides context for the Microsoft-led sessions that follow. When the notes indicate this intent, extract it as a dedicated goal (e.g. "Customer Business Overview" or "<Customer> Current-State Walkthrough"). Mark it clearly as a customer-presented session so the agenda builder can assign the customer's team as presenters and schedule it early in the day.
+
   BUSINESS & STRATEGIC GOALS:
   Also extract higher-level goals when present in the notes (e.g. industry trends, Microsoft POV, use case prioritization, workforce transformation, M365 Copilot ecosystem alignment). Each warrants its own goal when explicitly discussed.
 
