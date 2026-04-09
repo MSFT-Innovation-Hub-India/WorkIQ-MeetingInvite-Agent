@@ -437,6 +437,29 @@
     margin-top: 6px; transition: all 0.15s;
   }
   .add-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Document link card */
+  .doc-card {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 16px; margin: 8px 0;
+    background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
+    border: 1px solid #c2d4f2; border-radius: 10px;
+    text-decoration: none; color: var(--text-primary);
+    transition: all 0.2s; cursor: pointer;
+    max-width: 100%; box-sizing: border-box;
+  }
+  .doc-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(37,99,235,0.15); }
+  .doc-card-icon {
+    font-size: 28px; flex-shrink: 0;
+  }
+  .doc-card-info { display: flex; flex-direction: column; min-width: 0; }
+  .doc-card-name {
+    font-weight: 600; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .doc-card-action {
+    font-size: 11px; color: var(--accent); margin-top: 2px;
+  }
 </style>
 </head>
 <body>
@@ -879,10 +902,21 @@
 
   // ---- Markdown rendering ----
   function renderMarkdown(text) {
+    let html;
     if (typeof marked !== 'undefined') {
-      try { return marked.parse(text); } catch(e) { /* fall through */ }
+      try { html = marked.parse(text); } catch(e) { html = escapeHtml(text).replace(/\n/g, '<br>'); }
+    } else {
+      html = escapeHtml(text).replace(/\n/g, '<br>');
     }
-    return escapeHtml(text).replace(/\n/g, '<br>');
+    // Convert document links: [📄 filename.docx](url) → styled card
+    html = html.replace(
+      /<a\s+href="([^"]+)"[^>]*>\s*\u{1F4C4}\s*([^<]+)<\/a>/giu,
+      (_, url, name) => `<a class="doc-card" href="${url}" target="_blank" rel="noopener">`
+        + `<span class="doc-card-icon">📄</span>`
+        + `<span class="doc-card-info"><span class="doc-card-name">${name.trim()}</span>`
+        + `<span class="doc-card-action">Open in OneDrive ↗</span></span></a>`
+    );
+    return html;
   }
 
   // ---- Settings ----

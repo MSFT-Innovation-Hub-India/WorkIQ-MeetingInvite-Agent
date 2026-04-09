@@ -12,6 +12,7 @@ model: full
 conversational: false
 queued: true
 reasoning_effort: medium
+next_skill: engagement_agenda_build
 
 tools:
   - log_progress

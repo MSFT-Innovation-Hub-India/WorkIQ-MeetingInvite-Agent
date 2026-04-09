@@ -434,7 +434,7 @@ def _run_skill(skill: Skill, user_input: str, on_progress=None) -> str:
                 break
 
             # Tools that produce their own visible output or are internal bookkeeping
-            _silent_tools = {"log_progress", "engagement_context"}
+            _silent_tools = {"log_progress", "engagement_context", "get_hub_config"}
 
             tool_results = []
             for tc in tool_calls:
