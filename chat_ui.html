@@ -225,6 +225,22 @@
   .welcome h2 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
   .welcome p { font-size: 13px; max-width: 300px; line-height: 1.5; }
 
+  /* Suggested prompts */
+  .prompt-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 18px; max-width: 520px; justify-content: center;
+  }
+  .prompt-chip {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 20px; padding: 8px 16px; font-size: 12px;
+    color: var(--text); cursor: pointer; transition: all 0.15s;
+    line-height: 1.4; text-align: left;
+  }
+  .prompt-chip:hover {
+    border-color: var(--accent); color: var(--accent);
+    background: var(--accent-light);
+  }
+
   /* Markdown content styling */
   .bubble .md-content { white-space: normal; }
   .bubble .md-content p { margin: 0 0 8px 0; }
@@ -583,6 +599,14 @@
     <div class="welcome-icon"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMjU2M2ViIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzdjM2FlZCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPCEtLSBCYWNrZ3JvdW5kIC0tPgogIDxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjYiIGZpbGw9InVybCgjZ3JhZCkiLz4KICA8IS0tIEFJIFJvYm90IEhlYWQgLS0+CiAgPHJlY3QgeD0iOCIgeT0iMTAiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNCIgcng9IjMiIGZpbGw9IndoaXRlIi8+CiAgPCEtLSBFeWVzIC0tPgogIDxjaXJjbGUgY3g9IjEyIiBjeT0iMTYiIHI9IjIiIGZpbGw9IiMyNTYzZWIiLz4KICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjE2IiByPSIyIiBmaWxsPSIjN2MzYWVkIi8+CiAgPCEtLSBHbG93aW5nIGV5ZSBlZmZlY3QgLS0+CiAgPGNpcmNsZSBjeD0iMTIiIGN5PSIxNiIgcj0iMSIgZmlsbD0iIzYwYTVmYSIvPgogIDxjaXJjbGUgY3g9IjIwIiBjeT0iMTYiIHI9IjEiIGZpbGw9IiNhNzhiZmEiLz4KICA8IS0tIE1vdXRoL1NwZWFrZXIgLS0+CiAgPHJlY3QgeD0iMTEiIHk9IjIwIiB3aWR0aD0iMTAiIGhlaWdodD0iMiIgcng9IjEiIGZpbGw9IiM0YjU1NjMiLz4KICA8IS0tIEFudGVubmEgLS0+CiAgPGxpbmUgeDE9IjE2IiB5MT0iMTAiIHgyPSIxNiIgeTI9IjYiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSI1IiByPSIyIiBmaWxsPSIjNjBhNWZhIi8+Cjwvc3ZnPgo=" alt="AI" style="width:28px;height:28px;"></div>
     <h2>Hub SE Agent</h2>
     <p>Ask me anything — I can look up your calendar, search documents, answer questions about your M365 data, or create meeting invites from an agenda.</p>
+    <div class="prompt-chips">
+      <div class="prompt-chip" onclick="usePrompt(this)">Create an engagement agenda for Contoso</div>
+      <div class="prompt-chip" onclick="usePrompt(this)">Repurpose the Tally agenda for a new customer</div>
+      <div class="prompt-chip" onclick="usePrompt(this)">Show me last week's meeting summaries</div>
+      <div class="prompt-chip" onclick="usePrompt(this)">Send calendar invites for the Contoso agenda</div>
+      <div class="prompt-chip" onclick="usePrompt(this)">What emails did I get from Fabrikam?</div>
+      <div class="prompt-chip" onclick="usePrompt(this)">What's the status of my request?</div>
+    </div>
   </div>
 </div>
 
@@ -966,6 +990,11 @@
     ws.send(JSON.stringify({ type: 'task', input: text }));
     input.value = '';
     input.style.height = 'auto';
+  }
+
+  function usePrompt(chip) {
+    input.value = chip.textContent;
+    input.focus();
   }
 
   function newConversation() {

@@ -90,6 +90,7 @@ WorkIQ-Hub-SE-Agent is **skills-driven** — each capability is a declarative YA
 | **Engagement Goals** | full (`gpt-5.2`) | Yes | `log_progress`, `engagement_context` | Phase 2: extract and segment customer goals from briefing notes. Auto-chains → Agenda Build |
 | **Engagement Agenda Build** | full (`gpt-5.2`) | Yes | `log_progress`, `engagement_context`, `get_hub_config` | Phase 3: build a detailed agenda markdown table with time slots, speakers, descriptions. Auto-chains → Agenda Publish |
 | **Engagement Agenda Publish** | full (`gpt-5.2`) | Yes | `log_progress`, `engagement_context`, `create_word_doc` | Phase 4: create a Word document from the agenda using python-docx and save to the configured output folder |
+| **Agenda Repurpose** | full (`gpt-5.2`) | Yes | `query_workiq`, `log_progress`, `create_word_doc`, `get_hub_config` | Conversational: retrieve an existing agenda, collect new customer details (name, date, venue), create a repurposed Word document |
 | **Q&A** | mini (`gpt-5.4-mini`) | Yes | `query_workiq`, `log_progress` | Conversational Q&A about M365 data with session history |
 | **Task Status** | mini (`gpt-5.4-mini`) | No | `get_task_status` | Report current task progress and queue depth — responds instantly even while a task is running |
 | *(Router direct)* | mini (`gpt-5.4-mini`) | No | *(none)* | Greetings and small talk — the router handles these directly without invoking a skill |
@@ -456,7 +457,7 @@ The `get_hub_config` tool returns the merged configuration as JSON. Skills (like
 
 3. **HTTP server** (port `18081`) — Handles toast notification clicks. When the user clicks a toast, Windows opens `http://127.0.0.1:18081/show`, which brings up the pywebview window.
 
-4. **pywebview window** — Renders `chat_ui.html`. Starts hidden; close hides rather than quits. The `activeBubbles` Map tracks each concurrent request by `request_id` for complete isolation.
+4. **pywebview window** — Renders `chat_ui.html`. Starts hidden; close hides rather than quits. The `activeBubbles` Map tracks each concurrent request by `request_id` for complete isolation. The welcome screen shows **suggested prompt chips** — clickable examples that populate the input field, helping users discover available skills and phrasing patterns.
 
 5. **Tool Loader** — Discovers all `.py` files in `tools/` via `importlib` at startup. Each module exports a `SCHEMA` dict and `handle()` function. Adding a tool requires only dropping a Python file.
 
