@@ -10,6 +10,7 @@ Hub SE Agent is a **single-process, multi-threaded Windows desktop agent** built
 | Desktop host | `meeting_agent.py` | WebSocket server (port 18080), pywebview, tray icon, toast notifications |
 | Task queue | `task_queue.py` | In-memory FIFO queue with single worker thread for business tasks |
 | Email/calendar | `outlook_helper.py` | ACS email + `.ics` invite builder |
+| Word doc gen | `tools/create_word_doc.py` | Create Word documents from agenda markdown using python-docx |
 | Remote bridge | `redis_bridge.py` | Azure Managed Redis (Entra ID auth), stream-based inbox/outbox |
 | Tray icon | `tray_icon.py` | Raw Win32 ctypes system tray with message pump |
 
@@ -43,9 +44,9 @@ Required env vars: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_CHAT_MODEL`, `AZURE_OP
 
 Tools are auto-discovered from `tools/*.py` (files starting with `_` are skipped).
 
-**New skill** — create `skills/<name>.yaml` with fields: `name`, `description`, `model` (`"full"` | `"mini"`), `conversational` (bool), `queued` (bool), `tools` (list), `instructions` (str).
+**New skill** — create `skills/<name>.yaml` (or `skills/<group>/<name>.yaml` for grouped chains) with fields: `name`, `description`, `model` (`"full"` | `"mini"`), `conversational` (bool), `queued` (bool), `tools` (list), `instructions` (str). Mark chained internal skills with `[INTERNAL` in `description` to exclude from routing.
 
-Skills are auto-discovered from `skills/*.yaml`. The router prompt is rebuilt automatically from all skill descriptions.
+Skills are auto-discovered recursively from `skills/**/*.yaml`. The router prompt is rebuilt automatically from all non-internal skill descriptions. Greetings and small talk are handled directly by the router (classified as `"none"`) without invoking a skill.
 
 No restart needed when editing YAML skill instructions — but new files require a restart.
 
@@ -56,6 +57,7 @@ No restart needed when editing YAML skill instructions — but new files require
 - **WebSocket messages** — JSON with `type` field. Client sends `task`, `signin`, `clear_history`. Server sends `task_started`, `progress`, `task_complete`, `task_error`, `auth_status`, `skills_list`.
 - **Request IDs** — every request gets `uuid.uuid4().hex[:8]`, used across WebSocket, UI, Redis.
 - **Progress callback chain** — `on_progress(kind, message)` flows from `meeting_agent` → `agent_core` → tools.
+- **Skill chaining gates** — If a skill’s final text contains `[STOP_CHAIN]`, `agent_core` skips chaining to `next_skill`. Skills use this to gate on errors (e.g., no briefing calls found).
 
 ## Pitfalls
 

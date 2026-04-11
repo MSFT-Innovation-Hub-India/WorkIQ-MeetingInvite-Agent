@@ -265,7 +265,7 @@ def _load_skills() -> dict[str, Skill]:
     if not _SKILLS_DIR.is_dir():
         logger.warning("Skills directory not found: %s", _SKILLS_DIR)
         return skills
-    for path in sorted(_SKILLS_DIR.glob("*.yaml")):
+    for path in sorted(_SKILLS_DIR.glob("**/*.yaml")):
         if path.name.startswith("_"):
             continue
         try:
@@ -320,7 +320,14 @@ def _build_router_prompt() -> str:
         lines.append(f'{len(routable_skills)}. "{skill.name}" — {skill.description}')
         lines.append("")
 
-    skill_names = [f'"{s.name}"' for s in routable_skills]
+    # Add a catch-all for greetings / small talk that need no skill
+    lines.append(f'{len(routable_skills) + 1}. "none" — Greetings, small talk, thanks, goodbyes, '
+                 f'or simple conversational messages that do NOT require any data lookup or action '
+                 f'(e.g. "hi", "hello", "thanks", "how are you").')
+    lines.append("")
+
+    skill_names = [f'"{ s.name}"' for s in routable_skills]
+    skill_names.append('"none"')
     examples = " or ".join(f'{{"skill": {n}}}' for n in skill_names)
     lines.append(f"Respond with ONLY a JSON object, no other text:")
     lines.append(examples)
@@ -350,6 +357,8 @@ def _route(user_input: str) -> str:
         result = json.loads(text.strip())
         skill_name = result.get("skill") or result.get("agent", "qa")
         logger.info("[Router] Classified as: %s", skill_name)
+        if skill_name == "none":
+            return "none"
         if skill_name in _skills:
             return skill_name
         logger.warning("[Router] Unknown skill '%s' — defaulting to qa", skill_name)
@@ -520,12 +529,35 @@ def run_skill(skill_name: str, user_input: str, on_progress=None) -> str:
     Use this when the caller already knows which skill to invoke
     (e.g. after calling route() separately).
     """
+    # Handle small talk / greetings directly — no skill needed
+    if skill_name == "none":
+        logger.info("Handling as small talk — direct LLM reply")
+        client = get_responses_client()
+        resp = client.responses.create(
+            model=CHAT_MODEL,
+            instructions=(
+                "You are Hub SE Agent, a friendly helper for Microsoft 365 data. "
+                "Respond briefly and naturally to greetings and small talk. "
+                "Let the user know you can help with their M365 data — calendar, emails, "
+                "documents, contacts — or create engagement agendas and meeting invites."
+            ),
+            input=[{"role": "user", "content": user_input}],
+            tools=[],
+        )
+        reply = ""
+        for item in resp.output:
+            if item.type == "message":
+                for part in item.content:
+                    if part.type == "output_text":
+                        reply += part.text
+        return reply or "Hey! How can I help you today?"
+
     skill = _skills.get(skill_name)
     if not skill:
         logger.warning("Skill '%s' not found — falling back to qa", skill_name)
         skill = _skills.get("qa")
 
-    if skill and skill.name != "general" and on_progress:
+    if skill and on_progress:
         on_progress("agent", skill.name)
 
     return _run_skill(skill, user_input, on_progress)
