@@ -98,5 +98,23 @@
       "topic": "Windows in the Cloud: Secure, Elastic Desktops with Windows 365 and Azure Virtual Desktop",
       "description": "In this session, we discuss how Windows 365 and Azure Virtual Desktop enable a secure, elastic desktop plane for hybrid work, suitable for BYOD, contractors, frontline workers, and high-security environments. We cover major advances highlighted at Ignite 2025 such as Windows 365 Link, Frontline innovations, and rapid capacity patterns like Windows 365 Reserve. We also cover the emerging agentic desktop direction with Windows 365 for Agents and the governance stack with Intune and Entra Conditional Access to enforce Zero Trust while reducing endpoint risk and operational overhead."
     }
-  ]
+  ],
+
+  "FOUNDRYIQ_ENDPOINT": "",
+  "FOUNDRYIQ_KB_NAME": "rfp-knowledge-store",
+  "FOUNDRYIQ_AUTH_MODE": "browser",
+  "FOUNDRYIQ_API_VERSION": "2025-11-01-preview",
+
+  "FOUNDRY_PROJECT_ENDPOINT": "",
+  "FOUNDRY_AGENT_NAME": "project-analysis-agent",
+  "FOUNDRY_AUTH_MODE": "browser",
+
+  "RESOURCE_TENANT_ID": "",
+
+  "RFP_OUTPUT_FOLDER": "",
+
+  "GRAPH_TENANT_ID": "",
+  "GRAPH_CLIENT_ID": "",
+  "GRAPH_CLIENT_SECRET": "",
+  "GRAPH_USER_UPN": ""
 }
